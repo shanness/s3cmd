@@ -37,6 +37,8 @@ import traceback
 import codecs
 import locale
 import subprocess
+import hmac
+from hashlib import sha1, sha256
 try:
     import htmlentitydefs
 except:
@@ -2119,11 +2121,28 @@ def cmd_accesslog(args):
         #output(u"   Public Access:   %s" % accesslog.isAclPublic())
     return EX_OK
 
+def cmd_signv4(args):
+    dateStamp = args.pop()
+    debug("v4 dateStamp: %r" % dateStamp)
+    string_to_sign = args.pop()
+    debug("v4 string-to-sign: %r" % string_to_sign)
+    region = 'us-east-1'
+    debug("v4 region: %r" % region)
+    cfg = Config()
+    access_key = cfg.access_key
+    secret_key = cfg.secret_key
+    debug("v4 access key: %r" % access_key)
+
+    signing_key = Crypto.getSignatureKey(secret_key,dateStamp,region,'s3')
+    signature = decode_from_s3(hmac.new(signing_key, encode_to_s3(string_to_sign,errors="strict"), sha256).hexdigest())
+    output("Signature (v4) : %s" % decode_from_s3(signature))
+    return EX_OK
+
 def cmd_sign(args):
     string_to_sign = args.pop()
     debug("string-to-sign: %r" % string_to_sign)
     signature = Crypto.sign_string_v2(encode_to_s3(string_to_sign))
-    output("Signature: %s" % decode_from_s3(signature))
+    output("Signature (v2) : %s" % decode_from_s3(signature))
     return EX_OK
 
 def cmd_signurl(args):
@@ -2500,6 +2519,7 @@ def get_commands_list():
 
     {"cmd":"accesslog", "label":"Enable/disable bucket access logging", "param":"s3://BUCKET", "func":cmd_accesslog, "argc":1},
     {"cmd":"sign", "label":"Sign arbitrary string using the secret key", "param":"STRING-TO-SIGN", "func":cmd_sign, "argc":1},
+    {"cmd":"signv4", "label":"Sign arbitrary string using the secret key for v4", "param":"STRING-TO-SIGN dateStamp", "func":cmd_signv4, "argc":2},
     {"cmd":"signurl", "label":"Sign an S3 URL to provide limited public access with expiry", "param":"s3://BUCKET/OBJECT <expiry_epoch|+expiry_offset>", "func":cmd_signurl, "argc":2},
     {"cmd":"fixbucket", "label":"Fix invalid file names in a bucket", "param":"s3://BUCKET[/PREFIX]", "func":cmd_fixbucket, "argc":1},
 
